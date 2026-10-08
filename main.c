@@ -22,36 +22,18 @@ static void draw_edge(SDL_Renderer *renderer, Vec4 p1, Vec4 p2) {
   SDL_RenderLine(renderer, sx1, sy1, sx2, sy2);
 }
 
-/* Draw a single line of text with a dark outline so it stays readable on top
- * of the wireframe. */
-static void draw_text(SDL_Renderer *renderer, TTF_Font *font, const char *text,
-                      float x, float y) {
-  SDL_Color white = {255, 255, 255, 255};
-  SDL_Color black = {0, 0, 0, 255};
+/* Render a line of text into a texture. Returns NULL on failure. */
+static SDL_Texture *make_text(SDL_Renderer *renderer, TTF_Font *font,
+                              const char *text, SDL_Color color, float *w,
+                              float *h) {
+  SDL_Surface *surf = TTF_RenderText_Blended(font, text, 0, color);
+  if (!surf) return NULL;
 
-  TTF_SetFontOutline(font, 2);
-  SDL_Surface *surf = TTF_RenderText_Blended(font, text, 0, white);
-  if (surf) {
-    SDL_Texture *tex = SDL_CreateTextureFromSurface(renderer, surf);
-    if (tex) {
-      SDL_FRect dst = {x, y, (float)surf->w, (float)surf->h};
-      SDL_RenderTexture(renderer, tex, NULL, &dst);
-      SDL_DestroyTexture(tex);
-    }
-    SDL_DestroySurface(surf);
-  }
-
-  TTF_SetFontOutline(font, 0);
-  surf = TTF_RenderText_Blended(font, text, 0, black);
-  if (surf) {
-    SDL_Texture *tex = SDL_CreateTextureFromSurface(renderer, surf);
-    if (tex) {
-      SDL_FRect dst = {x, y, (float)surf->w, (float)surf->h};
-      SDL_RenderTexture(renderer, tex, NULL, &dst);
-      SDL_DestroyTexture(tex);
-    }
-    SDL_DestroySurface(surf);
-  }
+  SDL_Texture *tex = SDL_CreateTextureFromSurface(renderer, surf);
+  *w = (float)surf->w;
+  *h = (float)surf->h;
+  SDL_DestroySurface(surf);
+  return tex;
 }
 
 int main(int argc, char **argv) {
@@ -192,8 +174,37 @@ int main(int argc, char **argv) {
     snprintf(hud[hud_lines++], sizeof(hud[0]),
              "WASD/QE move   IJKL/UO rotate   Wheel zoom");
 
-    for (int i = 0; i < hud_lines; i++)
-      draw_text(renderer, font, hud[i], 10.0f, 10.0f + (float)i * 20.0f);
+    /* Draw the HUD on a translucent panel so the white text stays readable
+     * over the wireframe without needing an outline. */
+    SDL_Color white = {255, 255, 255, 255};
+    const float pad = 10.0f;
+    const float line_h = (float)TTF_GetFontHeight(font) + 2.0f;
+
+    float text_w = 0.0f;
+    for (int i = 0; i < hud_lines; i++) {
+      int w = 0, h = 0;
+      TTF_GetStringSize(font, hud[i], 0, &w, &h);
+      if ((float)w > text_w) text_w = (float)w;
+    }
+
+    SDL_FRect panel = {8.0f, 8.0f, text_w + pad * 2.0f,
+                       (float)hud_lines * line_h + pad * 2.0f};
+
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 150);
+    SDL_RenderFillRect(renderer, &panel);
+    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 50);
+    SDL_RenderRect(renderer, &panel);
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+
+    for (int i = 0; i < hud_lines; i++) {
+      float w, h;
+      SDL_Texture *tex = make_text(renderer, font, hud[i], white, &w, &h);
+      if (!tex) continue;
+      SDL_FRect dst = {panel.x + pad, panel.y + pad + (float)i * line_h, w, h};
+      SDL_RenderTexture(renderer, tex, NULL, &dst);
+      SDL_DestroyTexture(tex);
+    }
 
     SDL_RenderPresent(renderer);
   }
