@@ -14,7 +14,7 @@ cube and a large scanned mesh appear at a comfortable size right away.
 - Cohen–Sutherland line clipping against the view frustum.
 - Automatic camera framing based on the model's bounding sphere.
 - Bounding-box centering so asymmetric models are framed symmetrically.
-- Real-time FPS counter.
+- Real-time on-screen HUD: FPS, model name, vertex/edge counts, camera distance, position and rotation.
 - Optional OpenCL port that offloads the per-vertex transform/projection to the GPU (falls back to CPU).
 
 ## Requirements

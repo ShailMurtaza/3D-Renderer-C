@@ -22,6 +22,38 @@ static void draw_edge(SDL_Renderer *renderer, Vec4 p1, Vec4 p2) {
   SDL_RenderLine(renderer, sx1, sy1, sx2, sy2);
 }
 
+/* Draw a single line of text with a dark outline so it stays readable on top
+ * of the wireframe. */
+static void draw_text(SDL_Renderer *renderer, TTF_Font *font, const char *text,
+                      float x, float y) {
+  SDL_Color white = {255, 255, 255, 255};
+  SDL_Color black = {0, 0, 0, 255};
+
+  TTF_SetFontOutline(font, 2);
+  SDL_Surface *surf = TTF_RenderText_Blended(font, text, 0, white);
+  if (surf) {
+    SDL_Texture *tex = SDL_CreateTextureFromSurface(renderer, surf);
+    if (tex) {
+      SDL_FRect dst = {x, y, (float)surf->w, (float)surf->h};
+      SDL_RenderTexture(renderer, tex, NULL, &dst);
+      SDL_DestroyTexture(tex);
+    }
+    SDL_DestroySurface(surf);
+  }
+
+  TTF_SetFontOutline(font, 0);
+  surf = TTF_RenderText_Blended(font, text, 0, black);
+  if (surf) {
+    SDL_Texture *tex = SDL_CreateTextureFromSurface(renderer, surf);
+    if (tex) {
+      SDL_FRect dst = {x, y, (float)surf->w, (float)surf->h};
+      SDL_RenderTexture(renderer, tex, NULL, &dst);
+      SDL_DestroyTexture(tex);
+    }
+    SDL_DestroySurface(surf);
+  }
+}
+
 int main(int argc, char **argv) {
   if (argc < 2) {
     fprintf(stderr, "No obj file provided!\n");
@@ -106,7 +138,9 @@ int main(int argc, char **argv) {
   Uint64 fps_timer = 0;
   int fps_frame_count = 0;
   float current_fps = 0.0f;
-  char fps_text[32] = "";
+
+  const char *model_name = strrchr(obj_path, '/');
+  model_name = model_name ? model_name + 1 : obj_path;
 
   while (running) {
     Uint64 now = SDL_GetTicks();
@@ -139,39 +173,27 @@ int main(int argc, char **argv) {
     fps_frame_count++;
     if (now - fps_timer >= 1000) {
       current_fps = fps_frame_count * 1000.0f / (now - fps_timer);
-      snprintf(fps_text, sizeof(fps_text), "FPS: %.0f", current_fps);
       fps_frame_count = 0;
       fps_timer = now;
     }
 
-    if (fps_text[0]) {
-      SDL_Color white = {255, 255, 255, 255};
-      SDL_Color black = {0, 0, 0, 255};
+    char hud[8][128];
+    int hud_lines = 0;
+    snprintf(hud[hud_lines++], sizeof(hud[0]), "FPS: %.1f", current_fps);
+    snprintf(hud[hud_lines++], sizeof(hud[0]), "Model: %s", model_name);
+    snprintf(hud[hud_lines++], sizeof(hud[0]), "Vertices: %d   Edges: %d",
+             mesh->vertex_count, mesh->edge_count);
+    snprintf(hud[hud_lines++], sizeof(hud[0]), "Camera dist: %.2f", cam_dist);
+    snprintf(hud[hud_lines++], sizeof(hud[0]), "Position: (%.2f, %.2f, %.2f)",
+             state.tx, state.ty, state.tz);
+    snprintf(hud[hud_lines++], sizeof(hud[0]),
+             "Rotation: (%.1f, %.1f, %.1f) deg", state.rot_x, state.rot_y,
+             state.rot_z);
+    snprintf(hud[hud_lines++], sizeof(hud[0]),
+             "WASD/QE move   IJKL/UO rotate   Wheel zoom");
 
-      TTF_SetFontOutline(font, 2);
-      SDL_Surface *surf = TTF_RenderText_Blended(font, fps_text, 0, white);
-      if (surf) {
-        SDL_Texture *tex = SDL_CreateTextureFromSurface(renderer, surf);
-        if (tex) {
-          SDL_FRect dst = {10.0f, 10.0f, (float)surf->w, (float)surf->h};
-          SDL_RenderTexture(renderer, tex, NULL, &dst);
-          SDL_DestroyTexture(tex);
-        }
-        SDL_DestroySurface(surf);
-      }
-
-      TTF_SetFontOutline(font, 0);
-      surf = TTF_RenderText_Blended(font, fps_text, 0, black);
-      if (surf) {
-        SDL_Texture *tex = SDL_CreateTextureFromSurface(renderer, surf);
-        if (tex) {
-          SDL_FRect dst = {10.0f, 10.0f, (float)surf->w, (float)surf->h};
-          SDL_RenderTexture(renderer, tex, NULL, &dst);
-          SDL_DestroyTexture(tex);
-        }
-        SDL_DestroySurface(surf);
-      }
-    }
+    for (int i = 0; i < hud_lines; i++)
+      draw_text(renderer, font, hud[i], 10.0f, 10.0f + (float)i * 20.0f);
 
     SDL_RenderPresent(renderer);
   }
