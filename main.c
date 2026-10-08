@@ -37,6 +37,13 @@ int main(int argc, char **argv) {
 
   center_object(mesh->vertices, mesh->vertex_count);
 
+  /* Place the camera just behind the loaded object and pick clip planes that
+   * enclose it, so every model is framed consistently regardless of scale. */
+  float radius = object_radius(mesh->vertices, mesh->vertex_count);
+  float cam_dist, near_plane, far_plane;
+  fit_camera(radius, &cam_dist, &near_plane, &far_plane);
+  cam_z = -cam_dist;
+
   Vec4 *working = malloc(mesh->vertex_count * sizeof(Vec4));
   if (!working) {
     free_mesh(mesh);
@@ -115,7 +122,7 @@ int main(int argc, char **argv) {
     rotate_z(working, mesh->vertex_count, state.rot_z);
     translate(working, mesh->vertex_count, state.tx, state.ty, state.tz);
     translate(working, mesh->vertex_count, -cam_x, -cam_y, -cam_z);
-    project(working, mesh->vertex_count);
+    project(working, mesh->vertex_count, near_plane, far_plane);
 
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
