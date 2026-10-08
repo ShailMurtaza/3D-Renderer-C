@@ -1,0 +1,22 @@
+# ---- Build artifacts ----
+*.o
+renderer
+
+# ---- Editor / IDE ----
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# ---- OS junk ----
+.DS_Store
+Thumbs.db
+
+# ---- Debug / core files ----
+core
+core.*
+*.dSYM/
+vgcore.*
