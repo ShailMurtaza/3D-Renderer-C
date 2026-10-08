@@ -36,12 +36,44 @@ static SDL_Texture *make_text(SDL_Renderer *renderer, TTF_Font *font,
   return tex;
 }
 
+static void print_usage(const char *prog) {
+  fprintf(stderr,
+          "Usage: %s <model.obj> [options]\n"
+          "Options:\n"
+          "  --record <file.mp4>  Record the live window to an H.264 MP4 via ffmpeg\n"
+          "  --fps <F>            Recording frame rate (default 60)\n"
+          "  --frames <N>         Stop after N recorded frames (default: until the window is closed)\n",
+          prog);
+}
+
 int main(int argc, char **argv) {
   if (argc < 2) {
-    fprintf(stderr, "No obj file provided!\n");
+    print_usage(argv[0]);
     return 1;
   }
   const char *obj_path = argv[1];
+
+  const char *record_path = NULL;
+  int export_frames = 0; /* 0 = record until the window is closed */
+  int export_fps = 60;
+
+  for (int i = 2; i < argc; i++) {
+    if (!strcmp(argv[i], "--record") && i + 1 < argc) {
+      record_path = argv[++i];
+    } else if (!strcmp(argv[i], "--export") && i + 1 < argc) {
+      record_path = argv[++i]; /* alias kept for convenience */
+    } else if (!strcmp(argv[i], "--frames") && i + 1 < argc) {
+      export_frames = atoi(argv[++i]);
+    } else if (!strcmp(argv[i], "--fps") && i + 1 < argc) {
+      export_fps = atoi(argv[++i]);
+    } else {
+      fprintf(stderr, "Unknown or incomplete option: %s\n", argv[i]);
+      print_usage(argv[0]);
+      return 1;
+    }
+  }
+  if (export_frames < 0) export_frames = 0;
+  if (export_fps < 1) export_fps = 1;
 
   Mesh *mesh = load_obj(obj_path);
   if (!mesh) {
@@ -112,6 +144,54 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+  /* Optional live recording: capture the actual window contents (including
+   * the HUD) every frame and pipe them to ffmpeg. Rendering runs in real time;
+   * frames are duplicated when rendering falls behind so the output plays back
+   * at a steady `export_fps`, matching the wall-clock duration. */
+  FILE *ffmpeg = NULL;
+  unsigned char *frame_buf = NULL;
+  int out_w = WIDTH, out_h = HEIGHT;
+  if (record_path) {
+    SDL_GetRenderOutputSize(renderer, &out_w, &out_h);
+    if (out_w <= 0 || out_h <= 0) {
+      out_w = WIDTH;
+      out_h = HEIGHT;
+    }
+
+    char cmd[1024];
+    snprintf(cmd, sizeof(cmd),
+             "ffmpeg -y -loglevel error -f rawvideo -pix_fmt rgb24 "
+             "-s %dx%d -r %d -i - -an -c:v libx264 -preset medium -crf 18 "
+             "-pix_fmt yuv420p '%s'",
+             out_w, out_h, export_fps, record_path);
+    ffmpeg = popen(cmd, "w");
+    if (!ffmpeg) {
+      fprintf(stderr, "Failed to start ffmpeg. Is it installed and in PATH?\n");
+      TTF_CloseFont(font);
+      SDL_DestroyRenderer(renderer);
+      SDL_DestroyWindow(window);
+      TTF_Quit();
+      SDL_Quit();
+      free(working);
+      free_mesh(mesh);
+      return 1;
+    }
+    frame_buf = malloc((size_t)out_w * out_h * 3);
+    if (!frame_buf) {
+      pclose(ffmpeg);
+      TTF_CloseFont(font);
+      SDL_DestroyRenderer(renderer);
+      SDL_DestroyWindow(window);
+      TTF_Quit();
+      SDL_Quit();
+      free(working);
+      free_mesh(mesh);
+      return 1;
+    }
+    fprintf(stderr, "Recording %dx%d at %d fps to %s (close the window to stop)\n",
+            out_w, out_h, export_fps, record_path);
+  }
+
   TransformState state = {0};
 
   Uint64 prev_ticks = SDL_GetTicks();
@@ -120,13 +200,15 @@ int main(int argc, char **argv) {
   Uint64 fps_timer = 0;
   int fps_frame_count = 0;
   float current_fps = 0.0f;
+  int frame_index = 0;
+  Uint64 record_start = prev_ticks;
 
   const char *model_name = strrchr(obj_path, '/');
   model_name = model_name ? model_name + 1 : obj_path;
 
   while (running) {
     Uint64 now = SDL_GetTicks();
-    float dt = (now - prev_ticks) / 1000.0f;
+    float dt = (now - prev_ticks) / 1000.0f; /* real time */
     prev_ticks = now;
 
     running = process_events(&state, dt);
@@ -206,9 +288,39 @@ int main(int argc, char **argv) {
       SDL_DestroyTexture(tex);
     }
 
+    if (record_path) {
+      /* Grab exactly what is on screen. To keep a steady `export_fps` that
+       * matches wall-clock duration, write this frame as many times as needed
+       * to catch up with real time (duplicating when we fall behind, dropping
+       * extra renders when we run ahead). */
+      SDL_Surface *shot = SDL_RenderReadPixels(renderer, NULL);
+      if (shot) {
+        SDL_ConvertPixels(shot->w, shot->h, shot->format, shot->pixels,
+                          shot->pitch, SDL_PIXELFORMAT_RGB24, frame_buf,
+                          shot->w * 3);
+
+        long target = (long)((now - record_start) / 1000.0 * export_fps);
+        if (frame_index == 0 && target < 1) target = 1; /* start at once */
+        while (frame_index < target) {
+          fwrite(frame_buf, 1, (size_t)shot->w * shot->h * 3, ffmpeg);
+          frame_index++;
+          if (export_frames > 0 && frame_index >= export_frames) {
+            running = 0;
+            break;
+          }
+        }
+        SDL_DestroySurface(shot);
+      }
+    }
+
     SDL_RenderPresent(renderer);
   }
 
+  if (ffmpeg) {
+    fflush(ffmpeg);
+    pclose(ffmpeg);
+  }
+  free(frame_buf);
   TTF_CloseFont(font);
   SDL_DestroyRenderer(renderer);
   SDL_DestroyWindow(window);

@@ -1,8 +1,8 @@
 #ifndef TRANSFORMATIONS_H
 #define TRANSFORMATIONS_H
 
-#define WIDTH 1920
-#define HEIGHT 1080
+#define WIDTH 900
+#define HEIGHT 800
 
 /* Vertical half field of view used by project(), in degrees. */
 #define FOV_HALF_DEG 15.0f
@@ -24,7 +24,8 @@ void perspective_divide(Vec4 *v);
 void map_to_screen(const Vec4 *v, float *sx, float *sy);
 void center_object(Vec4 *vertices, int count);
 
-/* Bounding-sphere radius of the mesh around the origin (call after centering). */
+/* Bounding-sphere radius of the mesh around the origin (call after centering).
+ */
 float object_radius(const Vec4 *vertices, int count);
 
 /* Default camera placement for a mesh of the given radius: distance from the

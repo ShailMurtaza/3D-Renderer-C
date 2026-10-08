@@ -15,12 +15,14 @@ cube and a large scanned mesh appear at a comfortable size right away.
 - Automatic camera framing based on the model's bounding sphere.
 - Bounding-box centering so asymmetric models are framed symmetrically.
 - Real-time on-screen HUD: FPS, model name, vertex/edge counts, camera distance, position and rotation.
+- Live window recording to H.264 MP4 via an ffmpeg pipe, at a steady frame rate.
 - Optional OpenCL port that offloads the per-vertex transform/projection to the GPU (falls back to CPU).
 
 ## Requirements
 
 - A C compiler (`gcc` or `clang`) and `make`.
 - [SDL3](https://github.com/libsdl-org/SDL) and SDL3_ttf development packages.
+- `ffmpeg` in `PATH` (only needed for `--export`).
 
 On Arch Linux:
 
@@ -70,6 +72,44 @@ For example:
 ./renderer models/cube.obj
 ./renderer models/13463_Australian_Cattle_Dog_v3.obj
 ./renderer models/xyzrgb_dragon.obj
+```
+
+## Recording video
+
+The renderer can record the live window to an H.264 MP4 through an `ffmpeg`
+pipe. It captures exactly what is on screen — wireframe and HUD — while you
+interact with the model normally.
+
+```sh
+./renderer models/cube.obj --record out.mp4
+```
+
+Recording continues until you close the window (or hit the `--frames` limit):
+
+```sh
+# Stop automatically after 10 seconds at 60 fps
+./renderer models/cube.obj --record out.mp4 --frames 600
+```
+
+| Option | Description | Default |
+| --- | --- | --- |
+| `--record <file.mp4>` | Record the live window to this file | off |
+| `--fps <F>` | Recording frame rate | `60` |
+| `--frames <N>` | Stop after N recorded frames | until window closed |
+
+The capture runs in real time: every rendered frame is grabbed with
+`SDL_RenderReadPixels`, converted to RGB24 and streamed to ffmpeg. To keep a
+steady `fps` that matches the real-world duration of your session, frames are
+duplicated when rendering falls behind and extra renders are dropped when it
+runs ahead — so the output is always `fps`, regardless of the actual render
+speed.
+
+`ffmpeg` must be installed and on your `PATH`. To run without a visible window
+(for example on a server), use the SDL offscreen driver:
+
+```sh
+SDL_VIDEODRIVER=offscreen SDL_RENDER_DRIVER=software \
+  ./renderer models/cube.obj --record out.mp4 --frames 300
 ```
 
 ## Controls
