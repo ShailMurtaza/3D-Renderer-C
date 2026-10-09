@@ -7,6 +7,12 @@ and lets you tumble, pan and zoom the model interactively.
 The camera automatically frames whatever model you load, so both a tiny unit
 cube and a large scanned mesh appear at a comfortable size right away.
 
+## Demo
+
+A short screen recording of the renderer in action:
+
+https://github.com/user-attachments/assets/9be68f0c-375c-4146-9f38-ecaa9a4f0b97
+
 ## Features
 
 - Wavefront `.obj` loading (vertices and polygon edges, with duplicate-edge removal).
