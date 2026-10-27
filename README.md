@@ -9,7 +9,7 @@ cube and a large scanned mesh appear at a comfortable size right away.
 
 ## Demo
 
-https://github.com/user-attachments/assets/9be68f0c-375c-4146-9f38-ecaa9a4f0b97
+https://github.com/user-attachments/assets/6d473d9e-4a1b-47bc-b84a-9510363a12d7
 
 ## Features
 
