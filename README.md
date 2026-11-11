@@ -11,6 +11,7 @@ cube and a large scanned mesh appear at a comfortable size right away.
 
 https://github.com/user-attachments/assets/6d473d9e-4a1b-47bc-b84a-9510363a12d7
 
+[![Watch the video](https://img.youtube.com/vi/7mzOFfQIpfg/maxresdefault.jpg)](https://www.youtube.com/watch?v=7mzOFfQIpfg)
 ## Features
 
 - Wavefront `.obj` loading (vertices and polygon edges, with duplicate-edge removal).
